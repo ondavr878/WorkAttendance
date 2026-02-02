@@ -1,0 +1,45 @@
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcodeproj/xcshareddata/**
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+
+# Build
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Carthage
+Carthage/Build/
+
+# SPM
+Package.resolved
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+*.hmap
+
+# Secrets - DO NOT COMMIT
+GoogleService-Info.plist
+
+# Archives
+*.xcarchive/
