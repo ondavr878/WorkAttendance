@@ -32,13 +32,10 @@ struct AuthView: View {
                     endPoint: .bottom
                 )
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+
                 
-                // Dismiss Keyboard on Tap
-                .onTapGesture {
-                    hideKeyboard()
-                }
-                
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 32) {
                         // Header
                         headerView
@@ -126,6 +123,10 @@ struct AuthView: View {
                     .padding(.top, 40)
                     .padding(.bottom, 20)
                 }
+                .scrollDismissesKeyboard(.interactively)
+            }
+            .onTapGesture {
+                isFocused = false
             }
             .onAppear {
                 isAnimating = true
@@ -293,9 +294,11 @@ struct AuthView: View {
             if showPassword {
                 TextField("Password", text: $viewModel.password)
                     .foregroundStyle(.white)
+                    .focused($isFocused)
             } else {
                 SecureField("Password", text: $viewModel.password)
                     .foregroundStyle(.white)
+                    .focused($isFocused)
             }
             
             Button {
@@ -325,6 +328,7 @@ struct AuthView: View {
                 .keyboardType(keyboardType)
                 .foregroundStyle(.white)
                 .textInputAutocapitalization(title.contains("Email") ? .never : .sentences)
+                .focused($isFocused)
         }
         .padding()
         .frame(height: 56)

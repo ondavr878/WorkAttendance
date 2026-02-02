@@ -281,6 +281,7 @@ final class AttendanceViewModel {
                     if updateCheckIn {
                         attendance.checkInTime = newTime
                         attendance.checkInManual = true
+                        updateLiveActivity(checkInTime: newTime)
                     } else {
                         attendance.checkOutTime = newTime
                         attendance.checkOutManual = true
@@ -334,6 +335,17 @@ final class AttendanceViewModel {
             Task {
                 for activity in Activity<AttendanceAttributes>.activities {
                     await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+        }
+    }
+    
+    private func updateLiveActivity(checkInTime: Date) {
+        if #available(iOS 16.1, *) {
+            Task {
+                let contentState = AttendanceAttributes.ContentState(checkInTime: checkInTime)
+                for activity in Activity<AttendanceAttributes>.activities {
+                    await activity.update(using: contentState)
                 }
             }
         }

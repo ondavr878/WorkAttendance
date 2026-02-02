@@ -22,7 +22,7 @@ struct Work_AttendanceApp: App {
         ])
         
         // Use App Group container for shared storage
-        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.yourname.WorkAttendance")
+        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.MedDevsMultiModulApp.Work-Attendance")
         let config: ModelConfiguration
         
         if let appGroupURL = appGroupURL {

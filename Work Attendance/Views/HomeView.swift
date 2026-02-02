@@ -7,10 +7,12 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseAuth
 
 struct HomeView: View {
     
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Attendance.date, order: .reverse) private var allAttendances: [Attendance]
     @State private var viewModel: AttendanceViewModel?
     @State private var locationManager = LocationManager()
     @State private var notificationManager = NotificationManager()
@@ -80,6 +82,20 @@ struct HomeView: View {
                 setupViewModel()
                 Task {
                     await viewModel?.loadTodayAttendance()
+                }
+            }
+            .onChange(of: allAttendances) { _, newAttendances in
+                // Find today's attendance for current user
+                let today = Calendar.current.startOfDay(for: Date())
+                if let attendance = newAttendances.first(where: { 
+                    Calendar.current.isDate($0.date, inSameDayAs: today) && 
+                    $0.userId == AuthManager.shared.user?.uid 
+                }) {
+                    viewModel?.todayAttendance = attendance
+                } else {
+                    // Only clear if we are sure? Or maybe keep it? 
+                    // If checked out and deleted, it should clear.
+                    // But usually we just update.
                 }
             }
             .sheet(isPresented: $showSettings) {

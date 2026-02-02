@@ -25,6 +25,23 @@ enum AttendanceState {
 
 struct AttendanceProvider: TimelineProvider {
     
+    // Static container to avoid constant recreation and potential locking issues
+    @MainActor
+    static let sharedContainer: ModelContainer? = {
+        let schema = Schema([Attendance.self])
+        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.MedDevsMultiModulApp.Work-Attendance")
+        
+        let config: ModelConfiguration
+        if let appGroupURL = appGroupURL {
+            let sqliteURL = appGroupURL.appendingPathComponent("WorkAttendance.sqlite")
+            config = ModelConfiguration(schema: schema, url: sqliteURL)
+        } else {
+            config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        }
+        
+        return try? ModelContainer(for: schema, configurations: [config])
+    }()
+    
     @MainActor
     func placeholder(in context: Context) -> AttendanceEntry {
         AttendanceEntry(date: Date(), state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "0h 0m")
@@ -40,48 +57,44 @@ struct AttendanceProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<AttendanceEntry>) -> ()) {
         let entry = fetchAttendance(for: Date())
         
-        // Refresh every 10 minutes as a fallback, but relying on App to reloadTimeline
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 10, to: Date())!
+        // Refresh more frequently when checked in (1 min) for live timer feel
+        // Otherwise refresh every 15 minutes
+        let refreshInterval = entry.state == .checkedIn ? 1 : 15
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: refreshInterval, to: Date())!
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }
     
     @MainActor
     private func fetchAttendance(for date: Date) -> AttendanceEntry {
-        let schema = Schema([Attendance.self])
-        let appGroupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.yourname.WorkAttendance")
-        
-        let config: ModelConfiguration
-        if let appGroupURL = appGroupURL {
-            let sqliteURL = appGroupURL.appendingPathComponent("WorkAttendance.sqlite")
-            config = ModelConfiguration(schema: schema, url: sqliteURL)
-        } else {
-             config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        guard let container = Self.sharedContainer else {
+            return AttendanceEntry(date: date, state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "Config Err")
         }
         
+        let context = container.mainContext
+        let today = Calendar.current.startOfDay(for: date)
+        
+        // Simpler predicate to avoid range issues
+        let descriptor = FetchDescriptor<Attendance>(
+            predicate: #Predicate { attendance in
+                attendance.date == today
+            }
+        )
+        
         do {
-            let container = try ModelContainer(for: schema, configurations: [config])
-            let context = container.mainContext
-            
-            let today = Calendar.current.startOfDay(for: date)
-            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
-            
-            let descriptor = FetchDescriptor<Attendance>(
-                predicate: #Predicate { attendance in
-                    attendance.date >= today && attendance.date < tomorrow
-                }
-            )
-            
             let results = try context.fetch(descriptor)
             
-            if let attendance = results.first {
+            // If exact match fails, try a wider fetch for today as fallback
+            let attendance = results.first ?? (try? context.fetch(FetchDescriptor<Attendance>()).first { Calendar.current.isDate($0.date, inSameDayAs: today) })
+            
+            if let attendance = attendance {
                 let state: AttendanceState
                 if attendance.isComplete {
                     state = .completed
                 } else if attendance.hasCheckedIn {
                     state = .checkedIn
                 } else {
-                    state = .notStarted // Should ideally not exist if record exists, but possible if created without checkin
+                    state = .notStarted
                 }
                 
                 return AttendanceEntry(
@@ -92,12 +105,10 @@ struct AttendanceProvider: TimelineProvider {
                     workDuration: attendance.formattedWorkTime
                 )
             } else {
-                return AttendanceEntry(date: date, state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "0h 0m")
+                return AttendanceEntry(date: date, state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "No Data")
             }
-            
         } catch {
-            print("Widget Data Fetch Error: \(error)")
-            return AttendanceEntry(date: date, state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "Error")
+            return AttendanceEntry(date: date, state: .notStarted, checkInTime: nil, checkOutTime: nil, workDuration: "Fetch Err")
         }
     }
 }
@@ -169,6 +180,12 @@ struct AttendanceWidgetEntryView : View {
                     .font(.headline)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)
+                
+                if entry.workDuration != "0h 0m" {
+                    Text(entry.workDuration) // Shows "No Data", "Config Err", etc if something is wrong
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                }
             }
             
         case .checkedIn:
