@@ -18,7 +18,7 @@ struct SettingsView: View {
     @State private var showManualEntry = false
     @State private var showDeleteAlert = false
     
-    @AppStorage("dataSource") private var dataSource: String = "remote"
+    @AppStorage("dataSource") private var dataSource: String = "local"
     
     var body: some View {
         NavigationStack {
